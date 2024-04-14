@@ -1,7 +1,10 @@
 package com.mudit.awsspringmessage.AWSMessageRest.service;
 
 import com.mudit.awsspringmessage.AWSMessageRest.Model.MessageData;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.comprehend.ComprehendClient;
@@ -19,12 +22,41 @@ import java.util.Map;
 @Service
 public class MessageService {
 
+    @Value("${cloud.aws.region.static}")
+    private String region;
+
+    @Value("${cloud.aws.credentials.access-key}")
+    private String awsAccessKey;
+
+    @Value("${cloud.aws.credentials.secret-key}")
+    private String awsSecretKey;
+
     private final String queueName = "Message.fifo";
+
+    private AwsCredentials awsCredentials(){
+        AwsCredentials credentials = new AwsCredentials() {
+            @Override
+            public String accessKeyId() {
+                return awsAccessKey;
+            }
+
+            @Override
+            public String secretAccessKey() {
+                return awsSecretKey;
+            }
+        };
+        return credentials;
+    }
 
     private SqsClient getClient() {
         return SqsClient.builder()
                 .region(Region.US_EAST_1)
-                .credentialsProvider(ProfileCredentialsProvider.create())
+                .credentialsProvider(new AwsCredentialsProvider() {
+                    @Override
+                    public AwsCredentials resolveCredentials() {
+                        return awsCredentials();
+                    }
+                })
                 .build();
     }
 
@@ -33,7 +65,12 @@ public class MessageService {
 
         return ComprehendClient.builder()
                 .region(Region.US_EAST_1)
-                .credentialsProvider(ProfileCredentialsProvider.create())
+                .credentialsProvider(new AwsCredentialsProvider() {
+                    @Override
+                    public AwsCredentials resolveCredentials() {
+                        return awsCredentials();
+                    }
+                })
                 .build();
     }
 
