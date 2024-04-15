@@ -1,5 +1,6 @@
 package com.mudit.awsspringmessage.AWSMessageRest.controller;
 
+import com.mudit.awsspringmessage.AWSMessageRest.Dto.MessageDto;
 import com.mudit.awsspringmessage.AWSMessageRest.Model.MessageData;
 import com.mudit.awsspringmessage.AWSMessageRest.service.MessageService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,9 +20,9 @@ public class MessageController {
     MessageService messageService;
 
     @PostMapping("/add")
-    List<MessageData> addItems(HttpServletRequest request, HttpServletResponse response) {
-        String user = request.getParameter("user");
-        String message = request.getParameter("message");
+    List<MessageData> addItems(@RequestBody MessageDto messageDto) {
+        String user = messageDto.getUser();
+        String message = messageDto.getMessage();
 
         // Generate the ID.
         UUID uuid = UUID.randomUUID();
@@ -37,14 +38,14 @@ public class MessageController {
 
     // Purge the queue.
     @GetMapping("/purge")
-    String purgeMessages(HttpServletRequest request, HttpServletResponse response) {
+    String purgeMessages() {
         messageService.purgeMyQueue();
         return "Queue is purged";
     }
 
     // Get messages from the FIFO queue.
     @GetMapping("/msgs")
-    List<MessageData> getItems(HttpServletRequest request, HttpServletResponse response) {
+    List<MessageData> getItems() {
         List<MessageData> data = messageService.getMessages();
         return data;
     }
