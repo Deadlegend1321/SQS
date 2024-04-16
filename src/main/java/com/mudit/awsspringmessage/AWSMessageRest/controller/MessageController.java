@@ -3,8 +3,6 @@ package com.mudit.awsspringmessage.AWSMessageRest.controller;
 import com.mudit.awsspringmessage.AWSMessageRest.Dto.MessageDto;
 import com.mudit.awsspringmessage.AWSMessageRest.Model.MessageData;
 import com.mudit.awsspringmessage.AWSMessageRest.service.MessageService;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -41,6 +39,13 @@ public class MessageController {
     String purgeMessages() {
         messageService.purgeMyQueue();
         return "Queue is purged";
+    }
+
+    // Delete a particular message.
+    @GetMapping("/delete/{id}")
+    String deleteMessage(@PathVariable("id") String id) {
+        messageService.deleteMessage(id);
+        return "Message is deleted";
     }
 
     // Get messages from the FIFO queue.

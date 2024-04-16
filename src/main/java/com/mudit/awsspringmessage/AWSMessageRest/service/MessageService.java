@@ -5,12 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.comprehend.ComprehendClient;
-import software.amazon.awssdk.services.comprehend.model.DetectDominantLanguageRequest;
-import software.amazon.awssdk.services.comprehend.model.DetectDominantLanguageResponse;
-import software.amazon.awssdk.services.comprehend.model.DominantLanguage;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.*;
 
@@ -60,20 +55,6 @@ public class MessageService {
                 .build();
     }
 
-    // Get a Comprehend client.
-    private ComprehendClient getComClient() {
-
-        return ComprehendClient.builder()
-                .region(Region.US_EAST_1)
-                .credentialsProvider(new AwsCredentialsProvider() {
-                    @Override
-                    public AwsCredentials resolveCredentials() {
-                        return awsCredentials();
-                    }
-                })
-                .build();
-    }
-
 
     public void processMessage(MessageData msg) {
         SqsClient sqsClient = getClient();
@@ -90,27 +71,11 @@ public class MessageService {
                     .queueName(queueName)
                     .build();
 
-            // We will get the language code for the incoming message.
-            ComprehendClient comClient = getComClient();
-
-            // Specify the Langauge code of the incoming message.
-            String lanCode = "";
-            DetectDominantLanguageRequest request = DetectDominantLanguageRequest.builder()
-                    .text(msg.getBody())
-                    .build();
-
-            DetectDominantLanguageResponse resp = comClient.detectDominantLanguage(request);
-            List<DominantLanguage> allLanList = resp.languages();
-            for (DominantLanguage lang : allLanList) {
-                System.out.println("Language is " + lang.languageCode());
-                lanCode = lang.languageCode();
-            }
-
             String queueUrl = sqsClient.getQueueUrl(getQueueRequest).queueUrl();
             SendMessageRequest sendMsgRequest = SendMessageRequest.builder()
                     .queueUrl(queueUrl)
                     .messageAttributes(myMap)
-                    .messageGroupId("GroupA_" + lanCode)
+                    .messageGroupId("GroupA_" + "foo")
                     .messageDeduplicationId(msg.getId())
                     .messageBody(msg.getBody())
                     .build();
@@ -162,6 +127,38 @@ public class MessageService {
             e.getStackTrace();
         }
         return null;
+    }
+
+    public void deleteMessage(String id){
+        List<String> attr = new ArrayList<>();
+        attr.add("Name");
+        SqsClient sqsClient = getClient();
+        try{
+            GetQueueUrlRequest getQueueRequest = GetQueueUrlRequest.builder()
+                    .queueName(queueName)
+                    .build();
+            String queueUrl = sqsClient.getQueueUrl(getQueueRequest).queueUrl();
+            ReceiveMessageRequest receiveRequest = ReceiveMessageRequest.builder()
+                    .queueUrl(queueUrl)
+                    .maxNumberOfMessages(10)
+                    .waitTimeSeconds(20)
+                    .messageAttributeNames(attr)
+                    .build();
+            List<Message> messages = sqsClient.receiveMessage(receiveRequest).messages();
+            for (Message m : messages) {
+                if(m.messageId().equals(id)){
+                    DeleteMessageRequest deleteMessageRequest = DeleteMessageRequest
+                            .builder()
+                            .queueUrl(queueUrl)
+                            .receiptHandle(m.receiptHandle())
+                            .build();
+                    sqsClient.deleteMessage(deleteMessageRequest);
+                }
+            }
+        }
+        catch (Exception e) {
+            e.getStackTrace();
+        }
     }
 
     public void purgeMyQueue() {
