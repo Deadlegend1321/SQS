@@ -31,7 +31,7 @@ public class MessageController {
         messageOb.setName(user);
         messageOb.setBody(message);
         messageService.processMessage(messageOb);
-        return messageService.getMessages();
+        return messageService.getAllMessages();
     }
 
     // Purge the queue.
@@ -51,7 +51,7 @@ public class MessageController {
     // Get messages from the FIFO queue.
     @GetMapping("/msgs")
     List<MessageData> getItems() {
-        List<MessageData> data = messageService.getMessages();
+        List<MessageData> data = messageService.getAllMessages();
         return data;
     }
 }

@@ -45,7 +45,7 @@ public class MessageService {
 
     private SqsClient getClient() {
         return SqsClient.builder()
-                .region(Region.US_EAST_1)
+                .region(Region.AP_SOUTH_1)
                 .credentialsProvider(new AwsCredentialsProvider() {
                     @Override
                     public AwsCredentials resolveCredentials() {
@@ -87,7 +87,7 @@ public class MessageService {
         }
     }
 
-    public List<MessageData> getMessages() {
+    public List<Message> getMessages(){
         List<String> attr = new ArrayList<>();
         attr.add("Name");
         SqsClient sqsClient = getClient();
@@ -106,6 +106,20 @@ public class MessageService {
                     .build();
 
             List<Message> messages = sqsClient.receiveMessage(receiveRequest).messages();
+
+            return messages;
+
+        } catch (SqsException e) {
+            e.getStackTrace();
+        }
+        return null;
+    }
+
+    public List<MessageData> getAllMessages() {
+
+        try {
+
+            List<Message> messages = getMessages();
             MessageData myMessage;
             List<MessageData> allMessages = new ArrayList<>();
 
@@ -130,21 +144,13 @@ public class MessageService {
     }
 
     public void deleteMessage(String id){
-        List<String> attr = new ArrayList<>();
-        attr.add("Name");
         SqsClient sqsClient = getClient();
         try{
             GetQueueUrlRequest getQueueRequest = GetQueueUrlRequest.builder()
                     .queueName(queueName)
                     .build();
             String queueUrl = sqsClient.getQueueUrl(getQueueRequest).queueUrl();
-            ReceiveMessageRequest receiveRequest = ReceiveMessageRequest.builder()
-                    .queueUrl(queueUrl)
-                    .maxNumberOfMessages(10)
-                    .waitTimeSeconds(20)
-                    .messageAttributeNames(attr)
-                    .build();
-            List<Message> messages = sqsClient.receiveMessage(receiveRequest).messages();
+            List<Message> messages = getMessages();
             for (Message m : messages) {
                 if(m.messageId().equals(id)){
                     DeleteMessageRequest deleteMessageRequest = DeleteMessageRequest
