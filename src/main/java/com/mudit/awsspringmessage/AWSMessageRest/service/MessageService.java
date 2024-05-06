@@ -1,6 +1,8 @@
 package com.mudit.awsspringmessage.AWSMessageRest.service;
 
 import com.mudit.awsspringmessage.AWSMessageRest.Model.MessageData;
+import com.mudit.awsspringmessage.AWSMessageRest.Repository.MessageRepo;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
@@ -8,14 +10,25 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.*;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 @Service
 public class MessageService {
+
+    private final static Logger LOGGER =
+            Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
+
+    @Autowired
+    MessageRepo messageRepo;
+
+    final Scanner input = new Scanner(System.in);
+
+    final int consumerCount = 3;
+
 
     @Value("${cloud.aws.region.static}")
     private String region;
@@ -43,21 +56,17 @@ public class MessageService {
         return credentials;
     }
 
-    private SqsClient getClient() {
-        return SqsClient.builder()
-                .region(Region.AP_SOUTH_1)
-                .credentialsProvider(new AwsCredentialsProvider() {
-                    @Override
-                    public AwsCredentials resolveCredentials() {
-                        return awsCredentials();
-                    }
-                })
-                .build();
-    }
+    final SqsClient sqsClient = SqsClient.builder()
+            .region(Region.AP_SOUTH_1)
+            .credentialsProvider(new AwsCredentialsProvider() {
+                @Override
+                public AwsCredentials resolveCredentials() {
+                    return awsCredentials();
+                }
+            })
+            .build();
 
-
-    public void processMessage(MessageData msg) {
-        SqsClient sqsClient = getClient();
+    public void sendMessage(MessageData msg) {
 
         try {
             MessageAttributeValue attributeValue = MessageAttributeValue.builder()
@@ -81,8 +90,32 @@ public class MessageService {
                     .build();
 
             sqsClient.sendMessage(sendMsgRequest);
+            LOGGER.log( Level.INFO, "Sending message in the queue");
 
         } catch (SqsException e) {
+            LOGGER.log(Level.SEVERE, e.getMessage(), e);
+            e.getStackTrace();
+        }
+    }
+
+    public void processMessage() {
+        try{
+            GetQueueUrlRequest getQueueRequest = GetQueueUrlRequest.builder()
+                    .queueName(queueName)
+                    .build();
+            String queueUrl = sqsClient.getQueueUrl(getQueueRequest).queueUrl();
+            Consumer consumer = new Consumer(sqsClient, queueUrl, messageRepo);
+            ExecutorService executorService = Executors.newFixedThreadPool(consumerCount);
+            executorService.execute(consumer);
+            /*final Thread[] threads = new Thread[consumerCount];
+            for (int i = 0; i < consumerCount; i++) {
+                threads[i] = new Thread(consumer);
+                threads[i].start();
+            }*/
+
+        }
+        catch (Exception e) {
+            LOGGER.log(Level.SEVERE, e.getMessage(), e);
             e.getStackTrace();
         }
     }
@@ -90,8 +123,6 @@ public class MessageService {
     public List<Message> getMessages(){
         List<String> attr = new ArrayList<>();
         attr.add("Name");
-        SqsClient sqsClient = getClient();
-
         try {
             GetQueueUrlRequest getQueueRequest = GetQueueUrlRequest.builder()
                     .queueName(queueName)
@@ -110,6 +141,7 @@ public class MessageService {
             return messages;
 
         } catch (SqsException e) {
+            LOGGER.log(Level.SEVERE, e.getMessage(), e);
             e.getStackTrace();
         }
         return null;
@@ -131,20 +163,23 @@ public class MessageService {
 
                 Map<String, MessageAttributeValue> map = m.messageAttributes();
                 MessageAttributeValue val = map.get("Name");
-                myMessage.setName(val.stringValue());
+                if(val != null){
+                    myMessage.setName(val.stringValue());
+                }
                 allMessages.add(myMessage);
             }
+            LOGGER.log( Level.INFO, "Receiving messages from the queue");
 
             return allMessages;
 
         } catch (SqsException e) {
+            LOGGER.log(Level.SEVERE, e.getMessage(), e);
             e.getStackTrace();
         }
         return null;
     }
 
     public void deleteMessage(String id){
-        SqsClient sqsClient = getClient();
         try{
             GetQueueUrlRequest getQueueRequest = GetQueueUrlRequest.builder()
                     .queueName(queueName)
@@ -159,24 +194,13 @@ public class MessageService {
                             .receiptHandle(m.receiptHandle())
                             .build();
                     sqsClient.deleteMessage(deleteMessageRequest);
+                    LOGGER.log( Level.WARNING, "Deleting message from the queue", m);
                 }
             }
         }
         catch (Exception e) {
+            LOGGER.log(Level.SEVERE, e.getMessage(), e);
             e.getStackTrace();
         }
-    }
-
-    public void purgeMyQueue() {
-        SqsClient sqsClient = getClient();
-        GetQueueUrlRequest getQueueRequest = GetQueueUrlRequest.builder()
-                .queueName(queueName)
-                .build();
-
-        PurgeQueueRequest queueRequest = PurgeQueueRequest.builder()
-                .queueUrl(sqsClient.getQueueUrl(getQueueRequest).queueUrl())
-                .build();
-
-        sqsClient.purgeQueue(queueRequest);
     }
 }
